@@ -35,6 +35,13 @@ export const generateNutraImage = async (
   reserveSpaceForText: boolean = false
 ): Promise<string> => {
   try {
+    // Проверка наличия API ключа
+    const localKey = localStorage.getItem('GEMINI_API_KEY');
+    if (!localKey || localKey.trim().length === 0) {
+      throw new Error("API ключ не найден. Добавьте ключ в настройках.");
+    }
+    
+    console.log("Starting image generation with prompt:", userPrompt.substring(0, 50) + "...");
     const ai = getClient();
     
     const hookInfo = HOOK_DETAILS.find(h => h.id === hook);
@@ -87,6 +94,9 @@ export const generateNutraImage = async (
         }
     });
 
+    console.log("Sending request to Gemini API with model: gemini-2.5-flash-image");
+    console.log("Parts count:", parts.length);
+    
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: [
@@ -100,6 +110,11 @@ export const generateNutraImage = async (
           aspectRatio: "1:1"
         }
       }
+    });
+    
+    console.log("Response received:", {
+      hasCandidates: !!response.candidates,
+      candidatesCount: response.candidates?.length || 0
     });
 
     // Extract image
