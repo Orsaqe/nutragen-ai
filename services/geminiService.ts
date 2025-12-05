@@ -28,6 +28,59 @@ const getClient = () => {
 // Helper for rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Функция для генерации изображения через REST API напрямую
+const generateImageViaREST = async (
+  apiKey: string,
+  prompt: string,
+  referenceImages: string[] = []
+): Promise<string> => {
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`;
+  
+  const requestBody: any = {
+    prompt: prompt,
+    number_of_images: 1,
+    aspect_ratio: "1:1",
+    safety_filter_level: "block_some",
+    person_generation: "allow_all"
+  };
+  
+  // Добавляем референсы, если есть
+  if (referenceImages.length > 0) {
+    requestBody.reference_images = referenceImages.map(img => {
+      const matches = img.match(/^data:(.+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        return {
+          bytes: matches[2]
+        };
+      }
+      return null;
+    }).filter(Boolean);
+  }
+  
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody)
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+  }
+  
+  const data = await response.json();
+  
+  if (data.generatedImages && data.generatedImages.length > 0) {
+    // Imagen возвращает изображения в base64
+    const imageBase64 = data.generatedImages[0].imageBytes || data.generatedImages[0].base64String;
+    return `data:image/png;base64,${imageBase64}`;
+  }
+  
+  throw new Error("Изображение не было сгенерировано");
+};
+
 export const generateNutraImage = async (
   userPrompt: string,
   hook: NutraHook,
@@ -46,7 +99,6 @@ export const generateNutraImage = async (
     }
     
     console.log("Starting image generation with prompt:", userPrompt.substring(0, 50) + "...");
-    const ai = getClient();
     
     const hookInfo = HOOK_DETAILS.find(h => h.id === hook);
     const hookModifier = hookInfo ? hookInfo.promptModifier : "";
@@ -79,6 +131,16 @@ export const generateNutraImage = async (
          - Context: Ensure the image makes sense for the '${vertical}' niche.
       ${referenceImages.length > 0 ? "- Reference images have been provided. Use them as strong inspiration for the composition, color palette, or subject matter, but adapt them to the specified Nutra Marketing Angle." : ""}
     `;
+    
+    // Сначала попробуем через REST API для Imagen (может работать на бесплатном тарифе)
+    try {
+      console.log("Trying Imagen REST API...");
+      return await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
+    } catch (restError: any) {
+      console.log("REST API failed, trying library approach:", restError.message);
+      
+      // Если REST не сработал, пробуем через библиотеку
+      const ai = getClient();
 
     // Construct parts: Text prompt + any reference images
     const parts: any[] = [{ text: textPrompt }];
@@ -99,11 +161,13 @@ export const generateNutraImage = async (
     });
 
     // Список моделей для попытки (в порядке приоритета)
+    // Для генерации изображений на бесплатном тарифе нужно использовать специальные модели
     const modelsToTry = [
-      'gemini-2.0-flash-exp',
-      'gemini-2.5-flash-image', 
+      'imagen-3.0-generate-001',  // Imagen 3 для генерации изображений
+      'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
+      'gemini-2.0-flash-thinking-exp-001',  // Альтернативная модель
+      'gemini-1.5-flash-8b',  // Более легкая модель
       'gemini-1.5-flash',
-      'gemini-1.5-pro'
     ];
     
     let lastError: any = null;
