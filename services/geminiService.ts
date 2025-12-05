@@ -305,11 +305,24 @@ export const generateNutraImage = async (
     const availableModels = await getAvailableModels(localKey.trim());
     console.log("Available models from API:", availableModels);
     
-    // ПРИОРИТЕТ: Сначала новые модели из defaultModels (в порядке приоритета!)
-    // ВАЖНО: Пробуем ВСЕ модели из defaultModels в указанном порядке, даже если их нет в availableModels!
-    // Потому что availableModels может не включать все доступные модели
+    // Проверяем, есть ли Imagen модели в списке доступных
+    const availableImagenModels = availableModels.filter(m => m.includes('imagen'));
+    if (availableImagenModels.length > 0) {
+      console.log("✅✅✅ Found Imagen models in available list:", availableImagenModels);
+    } else {
+      console.warn("⚠️⚠️⚠️ NO Imagen models found in available list! Imagen may not be available for this API key/tier.");
+    }
+    
+    // ПРИОРИТЕТ: Сначала Imagen модели из availableModels (если есть), затем из defaultModels
+    // Затем остальные модели из defaultModels
+    const imagenModelsFromAvailable = defaultModels.filter(m => m.includes('imagen') && availableModels.includes(m));
+    const imagenModelsNotInAvailable = defaultModels.filter(m => m.includes('imagen') && !availableModels.includes(m));
+    const nonImagenModels = defaultModels.filter(m => !m.includes('imagen'));
+    
     const modelsToTry = [
-      ...defaultModels  // Пробуем ВСЕ модели из defaultModels в порядке приоритета (новые первыми!)
+      ...imagenModelsFromAvailable,    // Imagen модели, которые есть в availableModels (приоритет!)
+      ...imagenModelsNotInAvailable,    // Imagen модели из defaultModels (попробуем даже если нет в списке)
+      ...nonImagenModels,               // Остальные модели
     ];
     
     // Добавляем модели из availableModels, которых нет в defaultModels (в конце)
@@ -319,7 +332,8 @@ export const generateNutraImage = async (
       console.log("➕ Additional models from API:", additionalModels);
     }
     
-    console.log("📋 Models to try (NEW FIRST! Total:", modelsToTry.length, "):", modelsToTry);
+    console.log("📋 Models to try (Imagen FIRST! Total:", modelsToTry.length, "):", modelsToTry);
+    console.log("🎨 Imagen models to try:", [...imagenModelsFromAvailable, ...imagenModelsNotInAvailable]);
     
     if (modelsToTry.length === 0) {
       throw new Error("Не найдено доступных моделей. Проверьте API ключ.");
@@ -374,11 +388,11 @@ export const generateNutraImage = async (
           try {
             response = await ai.models.generateContent({
               model: modelName,
-              contents: [
-                {
-                    role: 'user',
-                    parts: parts
-                }
+      contents: [
+        {
+            role: 'user',
+            parts: parts
+        }
               ]
             });
           } catch (error1: any) {
@@ -430,9 +444,9 @@ export const generateNutraImage = async (
 
         // Ищем изображение в parts
         for (const part of candidate.content?.parts || []) {
-          if (part.inlineData) {
+      if (part.inlineData) {
             console.log("Image generated successfully from Gemini model");
-            return `data:image/png;base64,${part.inlineData.data}`;
+        return `data:image/png;base64,${part.inlineData.data}`;
           }
           // Также проверяем другие возможные форматы
           if (part.imageBytes) {
@@ -495,7 +509,7 @@ export const generateNutraImage = async (
       if (error.message.includes("SAFETY") || error.message.includes("BLOCKED")) {
         throw new Error("Контент был заблокирован системой безопасности. Попробуйте другую идею.");
       }
-      throw error;
+    throw error;
     }
     
     // Общая ошибка
