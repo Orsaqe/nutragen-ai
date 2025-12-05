@@ -29,12 +29,19 @@ const getClient = () => {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Функция для генерации изображения через REST API напрямую
+// Используем правильный endpoint для Imagen через Vertex AI или Generative AI API
 const generateImageViaREST = async (
   apiKey: string,
   prompt: string,
   referenceImages: string[] = []
 ): Promise<string> => {
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`;
+  // Попробуем разные endpoints для Imagen
+  const endpoints = [
+    // Вариант 1: Через Generative Language API (может не работать для Imagen)
+    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
+    // Вариант 2: Через другой endpoint
+    `https://ai.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
+  ];
   
   const requestBody: any = {
     prompt: prompt,
@@ -57,28 +64,45 @@ const generateImageViaREST = async (
     }).filter(Boolean);
   }
   
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody)
-  });
+  let lastError: any = null;
   
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
+  for (const apiUrl of endpoints) {
+    try {
+      console.log(`Trying endpoint: ${apiUrl.substring(0, 60)}...`);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.log(`Endpoint failed with ${response.status}:`, errorData);
+        lastError = new Error(errorData.error?.message || `HTTP ${response.status}`);
+        continue; // Пробуем следующий endpoint
+      }
+      
+      const data = await response.json();
+      
+      if (data.generatedImages && data.generatedImages.length > 0) {
+        // Imagen возвращает изображения в base64
+        const imageBase64 = data.generatedImages[0].imageBytes || data.generatedImages[0].base64String;
+        console.log("REST API success!");
+        return `data:image/png;base64,${imageBase64}`;
+      }
+      
+      throw new Error("Изображение не было сгенерировано");
+    } catch (error: any) {
+      console.log(`Endpoint error:`, error.message);
+      lastError = error;
+      continue;
+    }
   }
   
-  const data = await response.json();
-  
-  if (data.generatedImages && data.generatedImages.length > 0) {
-    // Imagen возвращает изображения в base64
-    const imageBase64 = data.generatedImages[0].imageBytes || data.generatedImages[0].base64String;
-    return `data:image/png;base64,${imageBase64}`;
-  }
-  
-  throw new Error("Изображение не было сгенерировано");
+  throw lastError || new Error("Все REST API endpoints не сработали");
 };
 
 export const generateNutraImage = async (
@@ -161,13 +185,12 @@ export const generateNutraImage = async (
     });
 
     // Список моделей для попытки (в порядке приоритета)
-    // Для генерации изображений на бесплатном тарифе нужно использовать специальные модели
+    // Пробуем модели, которые могут работать на бесплатном тарифе
+    // НЕ используем gemini-2.0-flash-exp - у него лимит 0!
     const modelsToTry = [
-      'imagen-3.0-generate-001',  // Imagen 3 для генерации изображений
-      'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
-      'gemini-2.0-flash-thinking-exp-001',  // Альтернативная модель
-      'gemini-1.5-flash-8b',  // Более легкая модель
-      'gemini-1.5-flash',
+      'gemini-1.5-flash',  // Основная модель, может работать
+      'gemini-1.5-pro',    // Pro версия
+      'gemini-1.5-flash-8b',  // Легкая версия
     ];
     
     let lastError: any = null;
