@@ -68,11 +68,15 @@ const generateStableDiffusionImage = async (
       return `data:image/png;base64,${data.artifacts[0].base64}`;
     }
     throw new Error('No image generated');
-  } catch (error: any) {
-    // Если Stability AI не сработал, пробуем Replicate
-    if (error.message?.includes('401') || error.message?.includes('403')) {
-      throw new Error('Неверный API ключ для Stable Diffusion. Проверьте ключ в настройках.');
-    }
+    } catch (error: any) {
+      // Если Stability AI не сработал, пробуем Replicate
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        throw new Error('Неверный API ключ для Stable Diffusion. Проверьте ключ в настройках.');
+      }
+      
+      if (error.message?.includes('billing') || error.message?.includes('limit') || error.message?.includes('quota')) {
+        throw new Error('Достигнут лимит биллинга Stable Diffusion. Пополните баланс или используйте другую модель.');
+      }
     
     // Пробуем Replicate API
     try {
@@ -167,9 +171,20 @@ const generateDALLEImage = async (
   
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+    
+    // Обработка различных ошибок DALL-E API
     if (error.error?.code === 'invalid_api_key') {
       throw new Error('Неверный API ключ для DALL-E. Проверьте ключ в настройках.');
     }
+    
+    if (error.error?.message?.includes('billing') || error.error?.message?.includes('limit') || error.error?.message?.includes('quota')) {
+      throw new Error('Достигнут лимит биллинга DALL-E. Пополните баланс в OpenAI или используйте другую модель (Stable Diffusion, Gemini).');
+    }
+    
+    if (error.error?.code === 'rate_limit_exceeded') {
+      throw new Error('Превышен лимит запросов DALL-E. Подождите немного и попробуйте снова.');
+    }
+    
     throw new Error(error.error?.message || error.message || `DALL-E API error: ${response.status}`);
   }
   

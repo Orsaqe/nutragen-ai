@@ -230,7 +230,17 @@ export default function App() {
       addToast(`Готово!`, 'success');
     } catch (error: any) {
       console.error("Generation error:", error);
-      const errorMessage = error?.message || "Ошибка генерации";
+      let errorMessage = error?.message || "Ошибка генерации";
+      
+      // Улучшенные сообщения об ошибках
+      if (errorMessage.includes('лимит биллинга') || errorMessage.includes('billing')) {
+        errorMessage = `💳 ${errorMessage}\n💡 Попробуйте другую модель (Stable Diffusion или Gemini)`;
+      } else if (errorMessage.includes('API ключ')) {
+        errorMessage = `🔑 ${errorMessage}\n💡 Добавьте ключ в настройках (иконка ключа вверху)`;
+      } else if (errorMessage.includes('лимит запросов') || errorMessage.includes('rate limit')) {
+        errorMessage = `⏱️ ${errorMessage}\n💡 Подождите немного и попробуйте снова`;
+      }
+      
       addToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
