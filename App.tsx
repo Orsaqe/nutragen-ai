@@ -289,7 +289,7 @@ export default function App() {
           backgroundClass={getHeaderThemeClass()}
           rightAction={
               <div className="flex items-center space-x-2">
-                 <button onClick={() => setShowDonateModal(true)} className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold rounded-full text-xs shadow-lg animate-pulse hover:scale-105 transition-transform flex items-center"><Coins size={12} className="mr-1" /> Донат</IOSButton>
+                 <button onClick={() => setShowDonateModal(true)} className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white font-bold rounded-full text-xs shadow-lg animate-pulse hover:scale-105 transition-transform flex items-center"><Coins size={12} className="mr-1" /> Донат</button>
                  <button onClick={() => setShowKeyModal(true)} className={`p-1.5 rounded-full ${savedKey ? 'bg-green-100 text-green-600' : `${t.bg} ${t.textSec} ${t.border}`} border`}><Key size={14} /></button>
                  <div className="flex space-x-1">{THEMES.map(theme => { let Icon = Sun; if (theme.id === 'dark') Icon = Moon; if (theme.id === 'cyber') Icon = Cpu; if (theme.id === 'steampunk') Icon = Cog; if (theme.id === 'glass') Icon = Glasses; if (theme.id === 'win95') Icon = Monitor; return (<button key={theme.id} onClick={() => setCurrentTheme(theme)} className={`p-1.5 rounded-full ${currentTheme.id === theme.id ? 'bg-blue-600 text-white' : `${t.bg} ${t.textSec} ${t.border}`}`}><Icon size={14} /></button>)})}</div>
               </div>
