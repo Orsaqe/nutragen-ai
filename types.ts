@@ -79,6 +79,22 @@ export interface StyleDetail {
     description: string;
 }
 
+// API Providers
+export enum ImageGenProvider {
+  GEMINI = 'gemini',
+  STABLE_DIFFUSION = 'stable-diffusion',
+  DALL_E = 'dall-e'
+}
+
+// Image Generation Models
+export interface ImageGenModel {
+  id: string;
+  name: string;
+  provider: ImageGenProvider;
+  description?: string;
+  requiresBilling?: boolean;
+}
+
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;

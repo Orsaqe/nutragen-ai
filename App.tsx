@@ -3,7 +3,9 @@ import { IOSHeader, IOSButton, FloatingNav, LoadingOverlay } from './components/
 import { Canvas } from './components/Canvas';
 import { HOOK_DETAILS, STYLE_DETAILS, SUPPORTED_LANGUAGES, VERTICAL_DETAILS, RECOMMENDED_HOOKS, THEMES } from './constants';
 import { NutraHook, VisualStyle, Layer, NutraVertical, Theme } from './types';
-import { generateNutraImagesBatch, generateMarketingText } from './services/geminiService';
+import { generateMarketingText } from './services/geminiService';
+import { generateImagesBatch, AVAILABLE_MODELS } from './services/imageGenService';
+import { ImageGenProvider, ImageGenModel } from './types';
 import { toPng } from 'html-to-image';
 import { 
   Sparkles, 
@@ -57,6 +59,9 @@ export default function App() {
   // Batch Count removed as per request, forced to 1
   const [autoGenerateText, setAutoGenerateText] = useState(false);
   
+  // Image generation model selection
+  const [selectedModel, setSelectedModel] = useState<ImageGenModel>(AVAILABLE_MODELS[0]);
+  
   const [generatedVariants, setGeneratedVariants] = useState<string[]>([]);
 
   // Editor
@@ -75,6 +80,14 @@ export default function App() {
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [customApiKey, setCustomApiKey] = useState('');
   const [savedKey, setSavedKey] = useState('');
+  
+  // API Keys for different providers
+  const [apiKeys, setApiKeys] = useState<Record<ImageGenProvider, string>>({
+    [ImageGenProvider.GEMINI]: '',
+    [ImageGenProvider.STABLE_DIFFUSION]: '',
+    [ImageGenProvider.DALL_E]: ''
+  });
+  const [currentProvider, setCurrentProvider] = useState<ImageGenProvider>(ImageGenProvider.GEMINI);
 
   const [toasts, setToasts] = useState<{id: number, message: string, type: 'success' | 'error'}[]>([]);
 
@@ -101,8 +114,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    const k = localStorage.getItem('GEMINI_API_KEY');
-    if (k) { setSavedKey(k); setCustomApiKey(k); }
+    // Load all API keys from localStorage
+    const geminiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+    const sdKey = localStorage.getItem('STABLE_DIFFUSION_API_KEY') || '';
+    const dalleKey = localStorage.getItem('DALL_E_API_KEY') || '';
+    
+    setApiKeys({
+      [ImageGenProvider.GEMINI]: geminiKey,
+      [ImageGenProvider.STABLE_DIFFUSION]: sdKey,
+      [ImageGenProvider.DALL_E]: dalleKey
+    });
+    
+    if (geminiKey) {
+      setSavedKey(geminiKey);
+      setCustomApiKey(geminiKey);
+    }
   }, []);
 
   const handleSaveKey = () => {
@@ -111,18 +137,34 @@ export default function App() {
           return;
       }
       const trimmedKey = customApiKey.trim();
-      localStorage.setItem('GEMINI_API_KEY', trimmedKey);
-      setSavedKey(trimmedKey);
-      addToast("Ключ успешно сохранен!", 'success');
+      const keyName = `${currentProvider.toUpperCase()}_API_KEY`;
+      localStorage.setItem(keyName, trimmedKey);
+      
+      setApiKeys(prev => ({ ...prev, [currentProvider]: trimmedKey }));
+      
+      if (currentProvider === ImageGenProvider.GEMINI) {
+        setSavedKey(trimmedKey);
+      }
+      
+      addToast(`Ключ ${currentProvider} успешно сохранен!`, 'success');
       setShowKeyModal(false);
-      console.log("API key saved to localStorage");
+      console.log(`API key saved for ${currentProvider}`);
   };
 
   const handleRemoveKey = () => {
-      localStorage.removeItem('GEMINI_API_KEY');
-      setSavedKey('');
-      setCustomApiKey('');
-      addToast("Ключ удален.", 'error');
+      const keyName = `${currentProvider.toUpperCase()}_API_KEY`;
+      localStorage.removeItem(keyName);
+      
+      setApiKeys(prev => ({ ...prev, [currentProvider]: '' }));
+      
+      if (currentProvider === ImageGenProvider.GEMINI) {
+        setSavedKey('');
+        setCustomApiKey('');
+      } else {
+        setCustomApiKey('');
+      }
+      
+      addToast(`Ключ ${currentProvider} удален.`, 'error');
   };
 
   const saveToHistory = () => {
@@ -152,22 +194,36 @@ export default function App() {
   const handleGenerate = async () => {
     if (!prompt) { addToast("Введите идею креатива!", 'error'); return; }
     
-    // Проверка API ключа перед генерацией
-    const apiKey = localStorage.getItem('GEMINI_API_KEY');
+    // Проверка API ключа для выбранной модели
+    const requiredProvider = selectedModel.provider;
+    const apiKey = apiKeys[requiredProvider];
     if (!apiKey || apiKey.trim().length === 0) {
-      addToast("Сначала добавьте API ключ в настройках!", 'error');
+      addToast(`Сначала добавьте API ключ для ${selectedModel.provider} в настройках!`, 'error');
+      setCurrentProvider(requiredProvider);
+      setCustomApiKey('');
       setShowKeyModal(true);
       return;
     }
     
     setIsLoading(true);
-    setLoadingMessage('Генерация...');
+    setLoadingMessage(`Генерация через ${selectedModel.name}...`);
     setGeneratedVariants([]); 
     
     try {
-      const images = await generateNutraImagesBatch(
+      const images = await generateImagesBatch(
           1, // Forced to 1
-          prompt, selectedHook, selectedStyle, selectedVertical, selectedLanguage, optionalTextPrompt, exampleImages, autoGenerateText
+          prompt,
+          selectedModel.id,
+          selectedHook,
+          selectedStyle,
+          selectedVertical,
+          selectedLanguage,
+          optionalTextPrompt,
+          exampleImages,
+          autoGenerateText,
+          (current, total) => {
+            setLoadingMessage(`Генерация ${current}/${total}...`);
+          }
       );
       if (images.length === 0) throw new Error("Не удалось создать изображение.");
       setGeneratedVariants(images);
@@ -365,6 +421,43 @@ export default function App() {
                     </div>
 
                     <div className="pt-4 pb-20">
+                        {/* Model Selection */}
+                        <div className="space-y-2">
+                            <label className={`text-[10px] font-bold uppercase tracking-wider ${t.textSec} mb-2 block`}>Модель генерации</label>
+                            <select 
+                                value={selectedModel.id} 
+                                onChange={(e) => {
+                                    const model = AVAILABLE_MODELS.find(m => m.id === e.target.value);
+                                    if (model) setSelectedModel(model);
+                                }}
+                                className={`w-full p-3 rounded-xl border ${t.border} ${t.card} ${t.text} text-sm font-medium`}
+                            >
+                                {Object.values(ImageGenProvider).map(provider => {
+                                    const providerModels = AVAILABLE_MODELS.filter(m => m.provider === provider);
+                                    if (providerModels.length === 0) return null;
+                                    return (
+                                        <optgroup key={provider} label={
+                                            provider === ImageGenProvider.GEMINI ? 'Gemini/Imagen' :
+                                            provider === ImageGenProvider.STABLE_DIFFUSION ? 'Stable Diffusion' :
+                                            'DALL-E'
+                                        }>
+                                            {providerModels.map(model => (
+                                                <option key={model.id} value={model.id}>
+                                                    {model.name} {model.requiresBilling ? '(платный)' : ''} {model.description ? `- ${model.description}` : ''}
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    );
+                                })}
+                            </select>
+                            {selectedModel.requiresBilling && (
+                                <p className="text-xs text-yellow-600">⚠️ Требуется платный тариф</p>
+                            )}
+                            {!apiKeys[selectedModel.provider] && (
+                                <p className="text-xs text-red-600">⚠️ Добавьте API ключ для {selectedModel.provider}</p>
+                            )}
+                        </div>
+                        
                         <IOSButton onClick={handleGenerate} disabled={!prompt} className="h-14 text-lg font-bold shadow-xl relative overflow-hidden group"><span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:animate-shimmer" /><Sparkles className="w-5 h-5 mr-2" /> СОЗДАТЬ КРЕАТИВ</IOSButton>
                     </div>
                     
@@ -536,16 +629,79 @@ export default function App() {
       {/* Key Modal */}
       {showKeyModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowKeyModal(false)}>
-              <div className="bg-white p-6 rounded-3xl max-w-md w-full mx-4 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-                  <h3 className="text-xl font-bold mb-2">API Ключ Gemini</h3>
-                  <p className="text-sm text-gray-600 mb-4">Добавьте свой ключ для быстрой генерации без лимитов.</p>
-                  <input type="password" value={customApiKey} onChange={e => setCustomApiKey(e.target.value)} placeholder="AIzaSy..." className="w-full p-3 rounded-xl border mb-4" />
-                  <div className="flex space-x-2">
-                      <IOSButton onClick={handleSaveKey}>Сохранить</IOSButton>
-                      {savedKey && <IOSButton variant="secondary" onClick={handleRemoveKey}>Удалить</IOSButton>}
+              <div className="bg-white p-6 rounded-3xl max-w-md w-full mx-4 shadow-2xl animate-in zoom-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-xl font-bold mb-4">API Ключи</h3>
+                  
+                  {/* Provider Selection */}
+                  <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-600 mb-2 block">Выберите провайдер:</label>
+                      <div className="grid grid-cols-3 gap-2">
+                          {Object.values(ImageGenProvider).map(provider => (
+                              <button
+                                  key={provider}
+                                  onClick={() => {
+                                      setCurrentProvider(provider);
+                                      setCustomApiKey(apiKeys[provider] || '');
+                                  }}
+                                  className={`p-2 rounded-xl border text-xs font-bold transition-all ${
+                                      currentProvider === provider
+                                          ? 'bg-blue-600 text-white border-blue-600'
+                                          : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-blue-300'
+                                  }`}
+                              >
+                                  {provider === ImageGenProvider.GEMINI ? 'Gemini' : 
+                                   provider === ImageGenProvider.STABLE_DIFFUSION ? 'Stable Diffusion' : 
+                                   'DALL-E'}
+                              </button>
+                          ))}
+                      </div>
                   </div>
-                  <div className="mt-4 text-xs text-gray-400 text-center">
-                      <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline hover:text-blue-500">Получить ключ (Google AI Studio)</a>
+                  
+                  {/* API Key Input */}
+                  <div className="mb-4">
+                      <label className="text-xs font-bold text-gray-600 mb-2 block">
+                          API Ключ {currentProvider === ImageGenProvider.GEMINI ? 'Gemini' : 
+                                   currentProvider === ImageGenProvider.STABLE_DIFFUSION ? 'Stable Diffusion' : 
+                                   'DALL-E'}
+                      </label>
+                      <input 
+                          type="password" 
+                          value={customApiKey} 
+                          onChange={e => setCustomApiKey(e.target.value)} 
+                          placeholder={
+                              currentProvider === ImageGenProvider.GEMINI ? "AIzaSy..." :
+                              currentProvider === ImageGenProvider.STABLE_DIFFUSION ? "sk-..." :
+                              "sk-..."
+                          }
+                          className="w-full p-3 rounded-xl border mb-2" 
+                      />
+                      {apiKeys[currentProvider] && (
+                          <p className="text-xs text-green-600 mb-2">✓ Ключ сохранен</p>
+                      )}
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex space-x-2 mb-4">
+                      <IOSButton onClick={handleSaveKey} className="flex-1">Сохранить</IOSButton>
+                      {apiKeys[currentProvider] && (
+                          <IOSButton variant="secondary" onClick={handleRemoveKey}>Удалить</IOSButton>
+                      )}
+                  </div>
+                  
+                  {/* Links to get API keys */}
+                  <div className="mt-4 text-xs text-gray-400 space-y-2">
+                      {currentProvider === ImageGenProvider.GEMINI && (
+                          <a href="https://aistudio.google.com/app/apikey" target="_blank" className="block underline hover:text-blue-500">Получить ключ Gemini (Google AI Studio)</a>
+                      )}
+                      {currentProvider === ImageGenProvider.STABLE_DIFFUSION && (
+                          <>
+                              <a href="https://platform.stability.ai/" target="_blank" className="block underline hover:text-blue-500">Получить ключ Stable Diffusion (Stability AI)</a>
+                              <a href="https://replicate.com/" target="_blank" className="block underline hover:text-blue-500">Или использовать Replicate API</a>
+                          </>
+                      )}
+                      {currentProvider === ImageGenProvider.DALL_E && (
+                          <a href="https://platform.openai.com/api-keys" target="_blank" className="block underline hover:text-blue-500">Получить ключ DALL-E (OpenAI)</a>
+                      )}
                   </div>
               </div>
           </div>
