@@ -214,11 +214,14 @@ export const generateNutraImage = async (
     
     // ВАЖНО: В Google AI Studio используется Imagen API для генерации изображений!
     // Сначала пробуем REST API для Imagen (правильный способ)
+    console.log("=== STEP 1: Trying Imagen REST API first (as in Google AI Studio) ===");
     try {
-      console.log("Trying Imagen REST API first (as in Google AI Studio)...");
-      return await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
+      const imagenResult = await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
+      console.log("✅ Imagen REST API SUCCESS!");
+      return imagenResult;
     } catch (restError: any) {
-      console.log("Imagen REST API failed, trying library approach:", restError.message);
+      console.error("❌ Imagen REST API failed:", restError.message);
+      console.log("=== STEP 2: Falling back to library approach ===");
       // Если REST не сработал, пробуем через библиотеку (может не работать для изображений)
     }
     
@@ -243,21 +246,10 @@ export const generateNutraImage = async (
         }
     });
 
-    // Получаем список доступных моделей
-    console.log("Fetching available models...");
-    const availableModels = await getAvailableModels(localKey.trim());
-    
-    // Список актуальных моделей на ноябрь 2025 (в порядке приоритета)
-    // Обновлено на основе актуальной информации
+    // Список актуальных моделей на ноябрь 2025 (в порядке приоритета - НОВЫЕ ПЕРВЫМИ!)
+    // ВАЖНО: Порядок имеет значение - сначала новые модели!
     const defaultModels = [
-      // Imagen модели для генерации изображений (НОЯБРЬ 2025 - актуальные версии!)
-      'imagen-4-ultra-001',           // Imagen 4 Ultra - самая мощная версия
-      'imagen-4-001',                  // Imagen 4 - универсальная модель
-      'imagen-4',                      // Альтернативное название
-      'imagen-3.0-generate-001',       // Imagen 3 - предыдущая версия
-      'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
-      
-      // Gemini 2.5 модели (НОЯБРЬ 2025 - актуальные версии!)
+      // Gemini 2.5 модели (НОЯБРЬ 2025 - САМЫЕ НОВЫЕ!)
       'gemini-2.5-pro',                // Gemini 2.5 Pro - высокопроизводительная
       'gemini-2.5-flash',              // Gemini 2.5 Flash - оптимизированная
       'gemini-2.5-flash-lite',         // Gemini 2.5 Flash-Lite - бюджетная
@@ -269,23 +261,32 @@ export const generateNutraImage = async (
       'gemini-2.0-flash-lite',         // Gemini 2.0 Flash-Lite
       'gemini-2.0-flash',               // Gemini 2.0 Flash
       
-      // Gemini 1.5 модели (старые, но могут работать)
+      // Gemini 1.5 модели (старые - в конце!)
       'gemini-1.5-flash-latest',
       'gemini-1.5-pro-latest',
       'gemini-1.5-flash-8b',
       'gemini-1.5-flash',
       'gemini-1.5-pro',
       
-      // Старые модели (fallback)
+      // Старые модели (fallback - в самом конце)
       'gemini-pro',
       'gemini-pro-vision'
     ];
     
-    // Объединяем доступные модели с дефолтными, убирая дубликаты
+    // Получаем список доступных моделей
+    console.log("Fetching available models from API...");
+    const availableModels = await getAvailableModels(localKey.trim());
+    console.log("Available models from API:", availableModels);
+    
+    // ПРИОРИТЕТ: Сначала новые модели из defaultModels (в порядке приоритета!)
+    // Затем модели из availableModels, которых нет в defaultModels
     const modelsToTry = [
-      ...availableModels.filter(m => defaultModels.includes(m)),
-      ...defaultModels.filter(m => !availableModels.includes(m))
+      ...defaultModels.filter(m => availableModels.includes(m)),  // Новые модели, которые доступны
+      ...defaultModels.filter(m => !availableModels.includes(m)), // Новые модели, попробуем даже если нет в списке
+      ...availableModels.filter(m => !defaultModels.includes(m))  // Остальные доступные модели
     ];
+    
+    console.log("📋 Models to try (NEW FIRST!):", modelsToTry);
     
     if (modelsToTry.length === 0) {
       throw new Error("Не найдено доступных моделей. Проверьте API ключ.");
