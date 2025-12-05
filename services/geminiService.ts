@@ -7,12 +7,17 @@ const getClient = () => {
   // 1. Check LocalStorage (User provided key)
   const localKey = localStorage.getItem('GEMINI_API_KEY');
   if (localKey && localKey.trim().length > 0) {
-      return new GoogleGenAI({ apiKey: localKey });
+      console.log("Using API key from localStorage");
+      return new GoogleGenAI({ apiKey: localKey.trim() });
   }
 
   // 2. Check Environment Variable (Default system key)
   const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key not found. Please add your key in Settings.");
+  if (!apiKey) {
+      console.error("No API key found in localStorage or environment");
+      throw new Error("API Key not found. Please add your key in Settings.");
+  }
+  console.log("Using API key from environment");
   return new GoogleGenAI({ apiKey });
 };
 
@@ -98,16 +103,54 @@ export const generateNutraImage = async (
     });
 
     // Extract image
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (!response.candidates || response.candidates.length === 0) {
+      console.error("No candidates in response:", response);
+      throw new Error("API не вернул результат. Проверьте API ключ и попробуйте снова.");
+    }
+
+    const candidate = response.candidates[0];
+    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+      console.error("Finish reason:", candidate.finishReason);
+      throw new Error(`Генерация остановлена: ${candidate.finishReason}. Возможно, контент был заблокирован или превышен лимит.`);
+    }
+
+    for (const part of candidate.content?.parts || []) {
       if (part.inlineData) {
+        console.log("Image generated successfully");
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
     
-    throw new Error("No image generated");
-  } catch (error) {
+    console.error("No image data in response:", response);
+    throw new Error("Изображение не было сгенерировано. Проверьте API ключ и попробуйте другую идею.");
+  } catch (error: any) {
     console.error("Gemini Image Gen Error:", error);
-    throw error;
+    
+    // Улучшенная обработка ошибок
+    if (error.message) {
+      // Если уже есть понятное сообщение, используем его
+      if (error.message.includes("API Key") || error.message.includes("401") || error.message.includes("403")) {
+        throw new Error("Неверный API ключ. Проверьте ключ в настройках.");
+      }
+      if (error.message.includes("429") || error.message.includes("quota") || error.message.includes("RESOURCE_EXHAUSTED")) {
+        throw new Error("Превышен лимит запросов. Подождите немного и попробуйте снова.");
+      }
+      if (error.message.includes("SAFETY") || error.message.includes("BLOCKED")) {
+        throw new Error("Контент был заблокирован системой безопасности. Попробуйте другую идею.");
+      }
+      throw error;
+    }
+    
+    // Общая ошибка
+    const errorStr = JSON.stringify(error);
+    if (errorStr.includes("401") || errorStr.includes("403")) {
+      throw new Error("Неверный API ключ. Проверьте ключ в настройках.");
+    }
+    if (errorStr.includes("429") || errorStr.includes("quota")) {
+      throw new Error("Превышен лимит запросов. Подождите немного и попробуйте снова.");
+    }
+    
+    throw new Error(error.message || `Ошибка генерации: ${errorStr.substring(0, 100)}`);
   }
 };
 
@@ -164,10 +207,14 @@ export const generateNutraImagesBatch = async (
                     );
                     results.push(imageRetry);
                     continue; // Success on retry
-                } catch (retryErr) {
-                    console.error("Retry failed, stopping batch.");
-                    break;
+                } catch (retryErr: any) {
+                    console.error("Retry failed:", retryErr);
+                    // Пробрасываем ошибку дальше, чтобы пользователь увидел сообщение
+                    throw retryErr;
                 }
+            } else {
+                // Пробрасываем другие ошибки
+                throw error;
             }
         }
     }

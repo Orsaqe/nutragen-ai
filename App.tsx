@@ -106,11 +106,16 @@ export default function App() {
   }, []);
 
   const handleSaveKey = () => {
-      if (!customApiKey.trim()) return;
-      localStorage.setItem('GEMINI_API_KEY', customApiKey.trim());
-      setSavedKey(customApiKey.trim());
+      if (!customApiKey.trim()) {
+          addToast("Введите API ключ!", 'error');
+          return;
+      }
+      const trimmedKey = customApiKey.trim();
+      localStorage.setItem('GEMINI_API_KEY', trimmedKey);
+      setSavedKey(trimmedKey);
       addToast("Ключ успешно сохранен!", 'success');
       setShowKeyModal(false);
+      console.log("API key saved to localStorage");
   };
 
   const handleRemoveKey = () => {
@@ -146,6 +151,15 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!prompt) { addToast("Введите идею креатива!", 'error'); return; }
+    
+    // Проверка API ключа перед генерацией
+    const apiKey = localStorage.getItem('GEMINI_API_KEY');
+    if (!apiKey || apiKey.trim().length === 0) {
+      addToast("Сначала добавьте API ключ в настройках!", 'error');
+      setShowKeyModal(true);
+      return;
+    }
+    
     setIsLoading(true);
     setLoadingMessage('Генерация...');
     setGeneratedVariants([]); 
@@ -159,8 +173,9 @@ export default function App() {
       setGeneratedVariants(images);
       addToast(`Готово!`, 'success');
     } catch (error: any) {
-      console.error(error);
-      addToast(error.message || "Ошибка генерации", 'error');
+      console.error("Generation error:", error);
+      const errorMessage = error?.message || "Ошибка генерации";
+      addToast(errorMessage, 'error');
     } finally {
       setIsLoading(false);
     }
