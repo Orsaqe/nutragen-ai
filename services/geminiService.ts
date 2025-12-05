@@ -326,14 +326,9 @@ export const generateNutraImage = async (
         console.log("AI client methods:", Object.keys(ai));
         console.log("AI models:", ai.models ? Object.keys(ai.models) : "no models");
         
-        // Попробуем правильный формат для @google/genai
-        // Возможно нужно использовать getGenerativeModel или другой метод
-        let response;
-        
         // ВАЖНО: Gemini API не поддерживает генерацию изображений!
         // Модели Gemini работают только с текстом и могут анализировать изображения, но не генерировать их
         // Попробуем использовать правильный формат вызова
-        
         let response;
         
         // Формат 1: через models.generateContent (текущий)
