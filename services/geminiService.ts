@@ -268,16 +268,20 @@ export const generateNutraImage = async (
 
     // Список актуальных моделей на ноябрь 2025 (в порядке приоритета - НОВЫЕ ПЕРВЫМИ!)
     // ВАЖНО: Порядок имеет значение - сначала Imagen модели для генерации изображений!
-    // ПРАВИЛЬНЫЕ названия моделей (с точками и -generate-):
+    // ПРАВИЛЬНЫЕ названия моделей из API (версия 4.8):
     const defaultModels = [
       // Imagen модели для генерации изображений (НОЯБРЬ 2025 - ПРИОРИТЕТ!)
-      // ПРАВИЛЬНЫЕ названия из API:
-      'imagen-4.0-ultra-generate-001',        // Imagen 4.0 Ultra - самая мощная
-      'imagen-4.0-generate-001',              // Imagen 4.0 - универсальная
-      'imagen-4.0-fast-generate-001',         // Imagen 4.0 Fast - быстрая версия
-      'imagen-4.0-ultra-generate-preview-06-06', // Imagen 4.0 Ultra Preview
-      'imagen-4.0-generate-preview-06-06',     // Imagen 4.0 Preview
-      // Старые названия (fallback, если новые не работают):
+      // ВАЖНО: Imagen API требует платный тариф! "Imagen API is only accessible to billed users"
+      // ПРАВИЛЬНЫЕ названия из API (версия 4.8):
+      'imagen-4.8-ultra-generate-001',        // Imagen 4.8 Ultra - самая мощная
+      'imagen-4.8-generate-001',              // Imagen 4.8 - универсальная
+      'imagen-4.8-fast-generate-001',         // Imagen 4.8 Fast - быстрая версия
+      'imagen-4.8-ultra-generate-preview-06-06', // Imagen 4.8 Ultra Preview
+      'imagen-4.8-generate-preview-06-06',     // Imagen 4.8 Preview
+      // Старые версии (fallback):
+      'imagen-4.0-ultra-generate-001',        // Imagen 4.0 Ultra
+      'imagen-4.0-generate-001',               // Imagen 4.0
+      'imagen-4.0-fast-generate-001',          // Imagen 4.0 Fast
       'imagen-3.0-generate-001',               // Imagen 3.0
       'imagen-3.0-fast-generate-001',          // Imagen 3.0 Fast
       
@@ -380,6 +384,13 @@ export const generateNutraImage = async (
             console.log("✅✅✅ generateImages response:", response);
           } catch (imagenError: any) {
             console.error("❌❌❌ generateImages failed:", imagenError);
+            
+            // Проверяем, не ошибка ли это о платном тарифе
+            const errorStr = JSON.stringify(imagenError);
+            if (errorStr.includes('billed users') || errorStr.includes('only accessible to billed')) {
+              throw new Error("Imagen API доступен только для платных пользователей. Для генерации изображений нужен платный тариф Google Cloud. Ошибка: Imagen API is only accessible to billed users at this time.");
+            }
+            
             throw imagenError;
           }
         } else if (isImagenModel && !hasGenerateImages) {
