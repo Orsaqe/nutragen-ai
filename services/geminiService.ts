@@ -28,6 +28,29 @@ const getClient = () => {
 // Helper for rate limiting
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Получить список доступных моделей
+const getAvailableModels = async (apiKey: string): Promise<string[]> => {
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (!response.ok) {
+      console.warn("Failed to fetch models list, using defaults");
+      return [];
+    }
+    const data = await response.json();
+    const models = data.models || [];
+    // Фильтруем модели, которые поддерживают generateContent
+    const supportedModels = models
+      .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+      .map((m: any) => m.name?.replace('models/', '') || m.name)
+      .filter(Boolean);
+    console.log("Available models with generateContent:", supportedModels);
+    return supportedModels;
+  } catch (error) {
+    console.warn("Error fetching models list:", error);
+    return [];
+  }
+};
+
 // Функция для генерации изображения через REST API напрямую
 // Используем правильный endpoint для Imagen через Vertex AI или Generative AI API
 const generateImageViaREST = async (
@@ -181,20 +204,31 @@ export const generateNutraImage = async (
         }
     });
 
-    // ВАЖНО: Проблема в том, что Gemini API не поддерживает генерацию изображений!
-    // Модели Gemini (gemini-1.5-flash, gemini-2.0-flash-exp и т.д.) работают только с ТЕКСТОМ
-    // Для генерации изображений нужен Imagen API, который может быть недоступен на бесплатном тарифе
-    // или требует другой endpoint/аутентификацию
+    // Получаем список доступных моделей
+    console.log("Fetching available models...");
+    const availableModels = await getAvailableModels(localKey.trim());
     
-    // Попробуем использовать модели, которые могут иметь поддержку изображений
-    // Но скорее всего это не сработает, так как Gemini не генерирует изображения
-    const modelsToTry = [
-      'gemini-1.5-flash',  // Основная модель
-      'gemini-1.5-pro',    // Pro версия  
+    // Список моделей для попытки (в порядке приоритета)
+    // Сначала пробуем модели из списка доступных, затем дефолтные
+    const defaultModels = [
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-pro',
+      'gemini-pro-vision'
     ];
     
-    // Если ни одна модель не сработает, выбросим понятную ошибку
-    console.warn("ВНИМАНИЕ: Gemini API не поддерживает генерацию изображений напрямую. Для генерации изображений нужен Imagen API.");
+    // Объединяем доступные модели с дефолтными, убирая дубликаты
+    const modelsToTry = [
+      ...availableModels.filter(m => defaultModels.includes(m)),
+      ...defaultModels.filter(m => !availableModels.includes(m))
+    ];
+    
+    if (modelsToTry.length === 0) {
+      throw new Error("Не найдено доступных моделей. Проверьте API ключ.");
+    }
+    
+    console.log("Models to try:", modelsToTry);
     
     let lastError: any = null;
     
@@ -211,8 +245,15 @@ export const generateNutraImage = async (
         // Возможно нужно использовать getGenerativeModel или другой метод
         let response;
         
+        // ВАЖНО: Gemini API не поддерживает генерацию изображений!
+        // Модели Gemini работают только с текстом и могут анализировать изображения, но не генерировать их
+        // Попробуем использовать правильный формат вызова
+        
+        let response;
+        
         // Формат 1: через models.generateContent (текущий)
         try {
+          // Убираем imageConfig, так как Gemini не генерирует изображения
           response = await ai.models.generateContent({
             model: modelName,
             contents: [
@@ -220,54 +261,35 @@ export const generateNutraImage = async (
                   role: 'user',
                   parts: parts
               }
-            ],
-            config: {
-              imageConfig: {
-                aspectRatio: "1:1"
-              }
-            }
+            ]
           });
         } catch (error1: any) {
           console.log("Format 1 failed:", error1.message);
           
-          // Формат 2: без config
-          try {
-            response = await ai.models.generateContent({
-              model: modelName,
-              contents: [
-                {
-                    role: 'user',
-                    parts: parts
-                }
-              ]
-            });
-          } catch (error2: any) {
-            console.log("Format 2 failed:", error2.message);
-            
-            // Формат 3: через getGenerativeModel (если доступен)
-            if (typeof (ai as any).getGenerativeModel === 'function') {
-              try {
-                const model = (ai as any).getGenerativeModel({ model: modelName });
-                response = await model.generateContent({
-                  contents: [
-                    {
-                        role: 'user',
-                        parts: parts
-                    }
-                  ],
-                  generationConfig: {
-                    // возможно здесь нужны параметры
+          // Формат 2: через getGenerativeModel (если доступен)
+          if (typeof (ai as any).getGenerativeModel === 'function') {
+            try {
+              const model = (ai as any).getGenerativeModel({ model: modelName });
+              response = await model.generateContent({
+                contents: [
+                  {
+                      role: 'user',
+                      parts: parts
                   }
-                });
-              } catch (error3: any) {
-                console.log("Format 3 failed:", error3.message);
-                throw error3;
-              }
-            } else {
+                ]
+              });
+            } catch (error2: any) {
+              console.log("Format 2 failed:", error2.message);
               throw error2;
             }
+          } else {
+            throw error1;
           }
         }
+        
+        // ВАЖНО: Gemini API возвращает ТЕКСТ, а не изображения!
+        // Если мы получили ответ, это будет текст, а не изображение
+        console.warn("ВНИМАНИЕ: Gemini API вернул ответ, но это текст, а не изображение!");
         
         console.log(`Success with model: ${modelName}`);
         console.log("Response received:", {
