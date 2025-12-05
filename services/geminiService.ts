@@ -58,12 +58,15 @@ const generateImageViaREST = async (
   prompt: string,
   referenceImages: string[] = []
 ): Promise<string> => {
-  // Попробуем разные endpoints и версии для Imagen
+  // Актуальные Imagen модели на ноябрь 2025
   const imagenModels = [
-    'imagen-3.0-generate-001',
-    'imagen-3.0-fast-generate-001',
-    'imagen-2.0-plus-001',
-    'imagen-2.0-001'
+    'imagen-4-ultra-001',           // Imagen 4 Ultra - самая мощная
+    'imagen-4-001',                  // Imagen 4 - универсальная
+    'imagen-4',                      // Альтернативное название
+    'imagen-3.0-generate-001',       // Imagen 3
+    'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
+    'imagen-2.0-plus-001',           // Старая версия (fallback)
+    'imagen-2.0-001'                 // Старая версия (fallback)
   ];
   
   const baseUrls = [
@@ -244,42 +247,38 @@ export const generateNutraImage = async (
     console.log("Fetching available models...");
     const availableModels = await getAvailableModels(localKey.trim());
     
-    // Список ВСЕХ возможных моделей для попытки (в порядке приоритета)
-    // Включаем все версии Gemini и Imagen модели
+    // Список актуальных моделей на ноябрь 2025 (в порядке приоритета)
+    // Обновлено на основе актуальной информации
     const defaultModels = [
-      // Imagen модели для генерации изображений (это то, что используется в AI Studio!)
-      'imagen-3.0-generate-001',
-      'imagen-3.0-fast-generate-001',
-      'imagen-2.0-plus-001',
-      'imagen-2.0-001',
+      // Imagen модели для генерации изображений (НОЯБРЬ 2025 - актуальные версии!)
+      'imagen-4-ultra-001',           // Imagen 4 Ultra - самая мощная версия
+      'imagen-4-001',                  // Imagen 4 - универсальная модель
+      'imagen-4',                      // Альтернативное название
+      'imagen-3.0-generate-001',       // Imagen 3 - предыдущая версия
+      'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
       
-      // Gemini 3.x модели
-      'gemini-3.0-pro',
-      'gemini-3.0-flash',
-      'gemini-3.0-flash-8b',
+      // Gemini 2.5 модели (НОЯБРЬ 2025 - актуальные версии!)
+      'gemini-2.5-pro',                // Gemini 2.5 Pro - высокопроизводительная
+      'gemini-2.5-flash',              // Gemini 2.5 Flash - оптимизированная
+      'gemini-2.5-flash-lite',         // Gemini 2.5 Flash-Lite - бюджетная
       
-      // Gemini 2.5 модели
-      'gemini-2.5-flash',
-      'gemini-2.5-pro',
-      'gemini-2.5-flash-image',  // Специальная модель для изображений
+      // Gemini 2.0 модели (февраль 2025)
+      'gemini-2.0-pro-exp',            // Gemini 2.0 Pro Experimental
+      'gemini-2.0-flash-thinking-exp', // Gemini 2.0 Flash Thinking
+      'gemini-2.0-flash-exp',          // Gemini 2.0 Flash Experimental
+      'gemini-2.0-flash-lite',         // Gemini 2.0 Flash-Lite
+      'gemini-2.0-flash',               // Gemini 2.0 Flash
       
-      // Gemini 2.0 модели
-      'gemini-2.0-flash-exp',
-      'gemini-2.0-flash-thinking-exp-001',
-      'gemini-2.0-flash',
-      'gemini-2.0-pro-exp',
-      
-      // Gemini 1.5 модели
+      // Gemini 1.5 модели (старые, но могут работать)
       'gemini-1.5-flash-latest',
       'gemini-1.5-pro-latest',
       'gemini-1.5-flash-8b',
       'gemini-1.5-flash',
       'gemini-1.5-pro',
       
-      // Старые модели
+      // Старые модели (fallback)
       'gemini-pro',
-      'gemini-pro-vision',
-      'gemini-ultra'
+      'gemini-pro-vision'
     ];
     
     // Объединяем доступные модели с дефолтными, убирая дубликаты
