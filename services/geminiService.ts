@@ -94,52 +94,86 @@ export const generateNutraImage = async (
         }
     });
 
-    console.log("Sending request to Gemini API with model: gemini-2.0-flash-exp");
-    console.log("Parts count:", parts.length);
+    // Список моделей для попытки (в порядке приоритета)
+    const modelsToTry = [
+      'gemini-2.0-flash-exp',
+      'gemini-2.5-flash-image', 
+      'gemini-1.5-flash',
+      'gemini-1.5-pro'
+    ];
     
-    // Попробуем использовать более доступную модель
-    // Если не работает, можно попробовать: 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-exp',
-      contents: [
-        {
-            role: 'user',
-            parts: parts
+    let lastError: any = null;
+    
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Trying model: ${modelName}`);
+        console.log("Parts count:", parts.length);
+        
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            {
+                role: 'user',
+                parts: parts
+            }
+          ],
+          config: {
+            imageConfig: {
+              aspectRatio: "1:1"
+            }
+          }
+        });
+        
+        console.log(`Success with model: ${modelName}`);
+        console.log("Response received:", {
+          hasCandidates: !!response.candidates,
+          candidatesCount: response.candidates?.length || 0
+        });
+
+        // Extract image
+        if (!response.candidates || response.candidates.length === 0) {
+          console.error("No candidates in response:", response);
+          throw new Error("API не вернул результат. Проверьте API ключ и попробуйте снова.");
         }
-      ],
-      config: {
-        imageConfig: {
-          aspectRatio: "1:1"
+
+        const candidate = response.candidates[0];
+        if (candidate.finishReason && candidate.finishReason !== 'STOP') {
+          console.error("Finish reason:", candidate.finishReason);
+          throw new Error(`Генерация остановлена: ${candidate.finishReason}. Возможно, контент был заблокирован или превышен лимит.`);
         }
+
+        for (const part of candidate.content?.parts || []) {
+          if (part.inlineData) {
+            console.log("Image generated successfully");
+            return `data:image/png;base64,${part.inlineData.data}`;
+          }
+        }
+        
+        console.error("No image data in response:", response);
+        throw new Error("Изображение не было сгенерировано. Проверьте API ключ и попробуйте другую идею.");
+      } catch (error: any) {
+        console.error(`Model ${modelName} failed:`, error);
+        lastError = error;
+        
+        // Если это ошибка лимита или квоты, не пробуем другие модели
+        const errorStr = JSON.stringify(error);
+        if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('RESOURCE_EXHAUSTED') || 
+            errorStr.includes('403') || errorStr.includes('PERMISSION_DENIED')) {
+          throw error; // Пробрасываем сразу
+        }
+        
+        // Если это ошибка "модель не найдена", пробуем следующую
+        if (errorStr.includes('404') || errorStr.includes('NOT_FOUND') || errorStr.includes('model')) {
+          continue; // Пробуем следующую модель
+        }
+        
+        // Для других ошибок тоже пробуем следующую модель
+        continue;
       }
-    });
-    
-    console.log("Response received:", {
-      hasCandidates: !!response.candidates,
-      candidatesCount: response.candidates?.length || 0
-    });
-
-    // Extract image
-    if (!response.candidates || response.candidates.length === 0) {
-      console.error("No candidates in response:", response);
-      throw new Error("API не вернул результат. Проверьте API ключ и попробуйте снова.");
-    }
-
-    const candidate = response.candidates[0];
-    if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-      console.error("Finish reason:", candidate.finishReason);
-      throw new Error(`Генерация остановлена: ${candidate.finishReason}. Возможно, контент был заблокирован или превышен лимит.`);
-    }
-
-    for (const part of candidate.content?.parts || []) {
-      if (part.inlineData) {
-        console.log("Image generated successfully");
-        return `data:image/png;base64,${part.inlineData.data}`;
-      }
     }
     
-    console.error("No image data in response:", response);
-    throw new Error("Изображение не было сгенерировано. Проверьте API ключ и попробуйте другую идею.");
+    // Если все модели не сработали, пробрасываем последнюю ошибку
+    throw lastError || new Error("Не удалось использовать ни одну из доступных моделей.");
   } catch (error: any) {
     console.error("Gemini Image Gen Error:", error);
     
