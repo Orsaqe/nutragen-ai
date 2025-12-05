@@ -94,11 +94,13 @@ export const generateNutraImage = async (
         }
     });
 
-    console.log("Sending request to Gemini API with model: gemini-2.5-flash-image");
+    console.log("Sending request to Gemini API with model: gemini-2.0-flash-exp");
     console.log("Parts count:", parts.length);
     
+    // Попробуем использовать более доступную модель
+    // Если не работает, можно попробовать: 'gemini-2.0-flash-exp', 'gemini-1.5-flash', 'gemini-1.5-pro'
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-2.0-flash-exp',
       contents: [
         {
             role: 'user',
