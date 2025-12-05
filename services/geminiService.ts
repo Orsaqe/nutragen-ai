@@ -38,12 +38,31 @@ const getAvailableModels = async (apiKey: string): Promise<string[]> => {
     }
     const data = await response.json();
     const models = data.models || [];
-    // Фильтруем модели, которые поддерживают generateContent
+    
+    // Фильтруем модели, которые поддерживают generateContent ИЛИ generateImages
     const supportedModels = models
-      .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
-      .map((m: any) => m.name?.replace('models/', '') || m.name)
+      .filter((m: any) => {
+        const methods = m.supportedGenerationMethods || [];
+        return methods.includes('generateContent') || methods.includes('generateImages') || methods.includes('predict');
+      })
+      .map((m: any) => {
+        const name = m.name?.replace('models/', '') || m.name;
+        const methods = m.supportedGenerationMethods || [];
+        console.log(`Model: ${name}, methods:`, methods);
+        return name;
+      })
       .filter(Boolean);
-    console.log("Available models with generateContent:", supportedModels);
+    
+    console.log("Available models with generateContent/generateImages:", supportedModels);
+    
+    // Отдельно выводим Imagen модели
+    const imagenModels = supportedModels.filter((m: string) => m.includes('imagen'));
+    if (imagenModels.length > 0) {
+      console.log("🎨 Found Imagen models in API:", imagenModels);
+    } else {
+      console.warn("⚠️ No Imagen models found in API response!");
+    }
+    
     return supportedModels;
   } catch (error) {
     console.warn("Error fetching models list:", error);
