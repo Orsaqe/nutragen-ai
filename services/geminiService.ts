@@ -109,20 +109,71 @@ export const generateNutraImage = async (
         console.log(`Trying model: ${modelName}`);
         console.log("Parts count:", parts.length);
         
-        const response = await ai.models.generateContent({
-          model: modelName,
-          contents: [
-            {
-                role: 'user',
-                parts: parts
+        // Проверяем доступные методы API
+        console.log("AI client methods:", Object.keys(ai));
+        console.log("AI models:", ai.models ? Object.keys(ai.models) : "no models");
+        
+        // Попробуем правильный формат для @google/genai
+        // Возможно нужно использовать getGenerativeModel или другой метод
+        let response;
+        
+        // Формат 1: через models.generateContent (текущий)
+        try {
+          response = await ai.models.generateContent({
+            model: modelName,
+            contents: [
+              {
+                  role: 'user',
+                  parts: parts
+              }
+            ],
+            config: {
+              imageConfig: {
+                aspectRatio: "1:1"
+              }
             }
-          ],
-          config: {
-            imageConfig: {
-              aspectRatio: "1:1"
+          });
+        } catch (error1: any) {
+          console.log("Format 1 failed:", error1.message);
+          
+          // Формат 2: без config
+          try {
+            response = await ai.models.generateContent({
+              model: modelName,
+              contents: [
+                {
+                    role: 'user',
+                    parts: parts
+                }
+              ]
+            });
+          } catch (error2: any) {
+            console.log("Format 2 failed:", error2.message);
+            
+            // Формат 3: через getGenerativeModel (если доступен)
+            if (typeof (ai as any).getGenerativeModel === 'function') {
+              try {
+                const model = (ai as any).getGenerativeModel({ model: modelName });
+                response = await model.generateContent({
+                  contents: [
+                    {
+                        role: 'user',
+                        parts: parts
+                    }
+                  ],
+                  generationConfig: {
+                    // возможно здесь нужны параметры
+                  }
+                });
+              } catch (error3: any) {
+                console.log("Format 3 failed:", error3.message);
+                throw error3;
+              }
+            } else {
+              throw error2;
             }
           }
-        });
+        }
         
         console.log(`Success with model: ${modelName}`);
         console.log("Response received:", {
