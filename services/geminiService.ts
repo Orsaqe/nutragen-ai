@@ -268,13 +268,18 @@ export const generateNutraImage = async (
 
     // Список актуальных моделей на ноябрь 2025 (в порядке приоритета - НОВЫЕ ПЕРВЫМИ!)
     // ВАЖНО: Порядок имеет значение - сначала Imagen модели для генерации изображений!
+    // ПРАВИЛЬНЫЕ названия моделей (с точками и -generate-):
     const defaultModels = [
       // Imagen модели для генерации изображений (НОЯБРЬ 2025 - ПРИОРИТЕТ!)
-      'imagen-4-ultra-001',           // Imagen 4 Ultra - самая мощная
-      'imagen-4-001',                  // Imagen 4 - универсальная
-      'imagen-4',                      // Альтернативное название
-      'imagen-3.0-generate-001',       // Imagen 3
-      'imagen-3.0-fast-generate-001',  // Быстрая версия Imagen 3
+      // ПРАВИЛЬНЫЕ названия из API:
+      'imagen-4.0-ultra-generate-001',        // Imagen 4.0 Ultra - самая мощная
+      'imagen-4.0-generate-001',              // Imagen 4.0 - универсальная
+      'imagen-4.0-fast-generate-001',         // Imagen 4.0 Fast - быстрая версия
+      'imagen-4.0-ultra-generate-preview-06-06', // Imagen 4.0 Ultra Preview
+      'imagen-4.0-generate-preview-06-06',     // Imagen 4.0 Preview
+      // Старые названия (fallback, если новые не работают):
+      'imagen-3.0-generate-001',               // Imagen 3.0
+      'imagen-3.0-fast-generate-001',          // Imagen 3.0 Fast
       
       // Gemini 2.5 модели (НОЯБРЬ 2025 - НО НЕ ДЛЯ ИЗОБРАЖЕНИЙ!)
       'gemini-2.5-pro',                // Gemini 2.5 Pro - высокопроизводительная
