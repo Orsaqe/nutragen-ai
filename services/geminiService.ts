@@ -7,8 +7,10 @@ const getClient = () => {
   // 1. Check LocalStorage (User provided key)
   const localKey = localStorage.getItem('GEMINI_API_KEY');
   if (localKey && localKey.trim().length > 0) {
-      console.log("Using API key from localStorage");
-      return new GoogleGenAI({ apiKey: localKey.trim() });
+      console.log("Using API key from localStorage, key length:", localKey.trim().length);
+      const client = new GoogleGenAI({ apiKey: localKey.trim() });
+      console.log("Client created, available methods:", Object.keys(client));
+      return client;
   }
 
   // 2. Check Environment Variable (Default system key)
@@ -18,7 +20,9 @@ const getClient = () => {
       throw new Error("API Key not found. Please add your key in Settings.");
   }
   console.log("Using API key from environment");
-  return new GoogleGenAI({ apiKey });
+  const client = new GoogleGenAI({ apiKey });
+  console.log("Client created, available methods:", Object.keys(client));
+  return client;
 };
 
 // Helper for rate limiting
