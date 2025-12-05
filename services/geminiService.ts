@@ -208,14 +208,42 @@ export const generateNutraImage = async (
     console.log("Fetching available models...");
     const availableModels = await getAvailableModels(localKey.trim());
     
-    // Список моделей для попытки (в порядке приоритета)
-    // Сначала пробуем модели из списка доступных, затем дефолтные
+    // Список ВСЕХ возможных моделей для попытки (в порядке приоритета)
+    // Включаем все версии Gemini и Imagen модели
     const defaultModels = [
+      // Imagen модели для генерации изображений (это то, что используется в AI Studio!)
+      'imagen-3.0-generate-001',
+      'imagen-3.0-fast-generate-001',
+      'imagen-2.0-plus-001',
+      'imagen-2.0-001',
+      
+      // Gemini 3.x модели
+      'gemini-3.0-pro',
+      'gemini-3.0-flash',
+      'gemini-3.0-flash-8b',
+      
+      // Gemini 2.5 модели
+      'gemini-2.5-flash',
+      'gemini-2.5-pro',
+      'gemini-2.5-flash-image',  // Специальная модель для изображений
+      
+      // Gemini 2.0 модели
       'gemini-2.0-flash-exp',
+      'gemini-2.0-flash-thinking-exp-001',
+      'gemini-2.0-flash',
+      'gemini-2.0-pro-exp',
+      
+      // Gemini 1.5 модели
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-flash-8b',
       'gemini-1.5-flash',
       'gemini-1.5-pro',
+      
+      // Старые модели
       'gemini-pro',
-      'gemini-pro-vision'
+      'gemini-pro-vision',
+      'gemini-ultra'
     ];
     
     // Объединяем доступные модели с дефолтными, убирая дубликаты
@@ -287,17 +315,27 @@ export const generateNutraImage = async (
           }
         }
         
-        // ВАЖНО: Gemini API возвращает ТЕКСТ, а не изображения!
-        // Если мы получили ответ, это будет текст, а не изображение
-        console.warn("ВНИМАНИЕ: Gemini API вернул ответ, но это текст, а не изображение!");
-        
         console.log(`Success with model: ${modelName}`);
         console.log("Response received:", {
           hasCandidates: !!response.candidates,
-          candidatesCount: response.candidates?.length || 0
+          candidatesCount: response.candidates?.length || 0,
+          fullResponse: response
         });
 
-        // Extract image
+        // Проверяем разные форматы ответа
+        // Для Imagen моделей ответ может быть в другом формате
+        if (modelName.includes('imagen')) {
+          // Imagen модели могут возвращать изображения в другом формате
+          if (response.generatedImages && response.generatedImages.length > 0) {
+            const imageBase64 = response.generatedImages[0].imageBytes || response.generatedImages[0].base64String;
+            if (imageBase64) {
+              console.log("Image generated successfully from Imagen model");
+              return `data:image/png;base64,${imageBase64}`;
+            }
+          }
+        }
+
+        // Extract image из стандартного формата Gemini
         if (!response.candidates || response.candidates.length === 0) {
           console.error("No candidates in response:", response);
           throw new Error("API не вернул результат. Проверьте API ключ и попробуйте снова.");
@@ -309,11 +347,24 @@ export const generateNutraImage = async (
           throw new Error(`Генерация остановлена: ${candidate.finishReason}. Возможно, контент был заблокирован или превышен лимит.`);
         }
 
+        // Ищем изображение в parts
         for (const part of candidate.content?.parts || []) {
           if (part.inlineData) {
-            console.log("Image generated successfully");
+            console.log("Image generated successfully from Gemini model");
             return `data:image/png;base64,${part.inlineData.data}`;
           }
+          // Также проверяем другие возможные форматы
+          if (part.imageBytes) {
+            console.log("Image found in imageBytes");
+            return `data:image/png;base64,${part.imageBytes}`;
+          }
+        }
+        
+        // Если это не Imagen модель и нет изображения, значит Gemini вернул текст
+        if (!modelName.includes('imagen')) {
+          const textResponse = candidate.content?.parts?.find(p => p.text)?.text || '';
+          console.warn("Gemini model returned text instead of image:", textResponse.substring(0, 100));
+          throw new Error("Gemini API вернул текст, а не изображение. Для генерации изображений нужна модель Imagen.");
         }
         
         console.error("No image data in response:", response);
