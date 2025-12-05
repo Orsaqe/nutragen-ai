@@ -1,0 +1,5 @@
+{
+  "name": "NutraGen AI",
+  "description": "Professional iOS-style Nutra creative generator using Gemini AI. Create high-converting ad creatives with embedded Nutra hooks and medical styles.",
+  "requestFramePermissions": []
+}
