@@ -99,6 +99,8 @@ const generateImageViaREST = async (
   let lastError: any = null;
   
   // Пробуем все комбинации моделей и endpoints
+  console.log(`🔍 Trying ${imagenModels.length} Imagen models across ${baseUrls.length} base URLs...`);
+  
   for (const model of imagenModels) {
     for (const baseUrl of baseUrls) {
       const endpoints = [
@@ -108,7 +110,7 @@ const generateImageViaREST = async (
       
       for (const apiUrl of endpoints) {
         try {
-          console.log(`Trying Imagen REST: ${model} at ${baseUrl}...`);
+          console.log(`🔄 Trying Imagen REST: ${model} at ${baseUrl.substring(0, 50)}...`);
           
           const response = await fetch(apiUrl, {
             method: 'POST',
@@ -118,10 +120,13 @@ const generateImageViaREST = async (
             body: JSON.stringify(requestBody)
           });
           
+          console.log(`📡 Response status: ${response.status} for ${model}`);
+          
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.log(`Endpoint failed with ${response.status}:`, errorData.error?.message || response.status);
-            lastError = new Error(errorData.error?.message || `HTTP ${response.status}`);
+            const errorMsg = errorData.error?.message || `HTTP ${response.status}`;
+            console.log(`❌ Endpoint failed (${response.status}):`, errorMsg);
+            lastError = new Error(errorMsg);
             continue; // Пробуем следующий endpoint
           }
           
