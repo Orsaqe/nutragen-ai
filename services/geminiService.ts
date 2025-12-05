@@ -317,8 +317,15 @@ export const generateNutraImage = async (
       }
     }
     
-    // Если все модели не сработали, пробрасываем последнюю ошибку
-    throw lastError || new Error("Не удалось использовать ни одну из доступных моделей.");
+    // Если все модели не сработали, пробрасываем понятную ошибку
+    if (lastError) {
+      const errorStr = JSON.stringify(lastError);
+      if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error("Превышен лимит запросов для бесплатного тарифа. Gemini API не поддерживает генерацию изображений на бесплатном тарифе. Для генерации изображений нужен Imagen API или платный тариф.");
+      }
+      throw lastError;
+    }
+    throw new Error("Не удалось использовать ни одну из доступных моделей. Gemini API не поддерживает генерацию изображений напрямую. Для генерации изображений нужен Imagen API.");
   } catch (error: any) {
     console.error("Gemini Image Gen Error:", error);
     
