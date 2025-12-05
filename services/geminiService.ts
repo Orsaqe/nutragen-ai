@@ -220,25 +220,11 @@ export const generateNutraImage = async (
       ${referenceImages.length > 0 ? "- Reference images have been provided. Use them as strong inspiration for the composition, color palette, or subject matter, but adapt them to the specified Nutra Marketing Angle." : ""}
     `;
     
-    // ВАЖНО: В Google AI Studio используется Imagen API для генерации изображений!
-    // Сначала пробуем REST API для Imagen (правильный способ)
+    // ВАЖНО: REST API для Imagen не работает из браузера из-за CORS!
+    // Используем библиотеку @google/genai, которая имеет метод generateImages
     console.log("═══════════════════════════════════════════════════════════");
-    console.log("=== STEP 1: Trying Imagen REST API first (as in Google AI Studio) ===");
+    console.log("=== Using library approach (REST API blocked by CORS) ===");
     console.log("═══════════════════════════════════════════════════════════");
-    
-    try {
-      console.log("📞 Calling generateImageViaREST...");
-      const imagenResult = await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
-      console.log("✅✅✅ Imagen REST API SUCCESS! ✅✅✅");
-      return imagenResult;
-    } catch (restError: any) {
-      console.error("❌❌❌ Imagen REST API failed:", restError.message);
-      console.error("❌ Full error:", restError);
-      console.log("═══════════════════════════════════════════════════════════");
-      console.log("=== STEP 2: Falling back to library approach ===");
-      console.log("═══════════════════════════════════════════════════════════");
-      // Если REST не сработал, пробуем через библиотеку (может не работать для изображений)
-    }
     
     // Пробуем через библиотеку с моделями, которые могут работать
     const ai = getClient();
@@ -324,45 +310,43 @@ export const generateNutraImage = async (
         
         // Проверяем доступные методы API
         console.log("AI client methods:", Object.keys(ai));
-        console.log("AI models:", ai.models ? Object.keys(ai.models) : "no models");
+        const availableMethods = ai.models ? Object.keys(ai.models) : [];
+        console.log("AI models methods:", availableMethods);
         
-        // ВАЖНО: Gemini API не поддерживает генерацию изображений!
-        // Модели Gemini работают только с текстом и могут анализировать изображения, но не генерировать их
-        // Попробуем использовать правильный формат вызова
         let response;
         
-        // Формат 1: через models.generateContent (текущий)
-        try {
-          // Убираем imageConfig, так как Gemini не генерирует изображения
-          response = await ai.models.generateContent({
-            model: modelName,
-            contents: [
-              {
-                  role: 'user',
-                  parts: parts
-              }
-            ]
-          });
-        } catch (error1: any) {
-          console.log("Format 1 failed:", error1.message);
-          
-          // Формат 2: через getGenerativeModel (если доступен)
-          if (typeof (ai as any).getGenerativeModel === 'function') {
-            try {
-              const model = (ai as any).getGenerativeModel({ model: modelName });
-              response = await model.generateContent({
-                contents: [
-                  {
-                      role: 'user',
-                      parts: parts
-                  }
-                ]
-              });
-            } catch (error2: any) {
-              console.log("Format 2 failed:", error2.message);
-              throw error2;
-            }
-          } else {
+        // ВАЖНО: Для Imagen моделей нужно использовать generateImages, а не generateContent!
+        if (modelName.includes('imagen') && availableMethods.includes('generateImages')) {
+          console.log(`🎨 Using generateImages for Imagen model: ${modelName}`);
+          try {
+            response = await ai.models.generateImages({
+              model: modelName,
+              prompt: textPrompt,
+              number_of_images: 1,
+              aspect_ratio: "1:1",
+              safety_filter_level: "block_some",
+              person_generation: "allow_all"
+            });
+            console.log("✅ generateImages response:", response);
+          } catch (imagenError: any) {
+            console.log("generateImages failed:", imagenError.message);
+            throw imagenError;
+          }
+        } else {
+          // Для Gemini моделей используем generateContent (но они не генерируют изображения!)
+          console.log(`⚠️ Using generateContent for Gemini model: ${modelName} (may not work for images)`);
+          try {
+            response = await ai.models.generateContent({
+              model: modelName,
+              contents: [
+                {
+                    role: 'user',
+                    parts: parts
+                }
+              ]
+            });
+          } catch (error1: any) {
+            console.log("generateContent failed:", error1.message);
             throw error1;
           }
         }
@@ -375,13 +359,22 @@ export const generateNutraImage = async (
         });
 
         // Проверяем разные форматы ответа
-        // Для Imagen моделей ответ может быть в другом формате
+        // Для Imagen моделей ответ от generateImages
         if (modelName.includes('imagen')) {
-          // Imagen модели могут возвращать изображения в другом формате
+          // generateImages возвращает изображения в формате generatedImages
           if (response.generatedImages && response.generatedImages.length > 0) {
-            const imageBase64 = response.generatedImages[0].imageBytes || response.generatedImages[0].base64String;
+            const image = response.generatedImages[0];
+            const imageBase64 = image.imageBytes || image.base64String || image.bytes;
             if (imageBase64) {
-              console.log("Image generated successfully from Imagen model");
+              console.log("✅✅✅ Image generated successfully from Imagen model! ✅✅✅");
+              return `data:image/png;base64,${imageBase64}`;
+            }
+          }
+          // Также проверяем альтернативные форматы
+          if (response.images && response.images.length > 0) {
+            const imageBase64 = response.images[0].bytes || response.images[0].base64;
+            if (imageBase64) {
+              console.log("✅ Image from images array!");
               return `data:image/png;base64,${imageBase64}`;
             }
           }
