@@ -51,19 +51,25 @@ const getAvailableModels = async (apiKey: string): Promise<string[]> => {
   }
 };
 
-// Функция для генерации изображения через REST API напрямую
-// Используем правильный endpoint для Imagen через Vertex AI или Generative AI API
+// Функция для генерации изображения через REST API напрямую для Imagen
+// Это правильный способ для Imagen моделей (как в Google AI Studio)
 const generateImageViaREST = async (
   apiKey: string,
   prompt: string,
   referenceImages: string[] = []
 ): Promise<string> => {
-  // Попробуем разные endpoints для Imagen
-  const endpoints = [
-    // Вариант 1: Через Generative Language API (может не работать для Imagen)
-    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
-    // Вариант 2: Через другой endpoint
-    `https://ai.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImages?key=${apiKey}`,
+  // Попробуем разные endpoints и версии для Imagen
+  const imagenModels = [
+    'imagen-3.0-generate-001',
+    'imagen-3.0-fast-generate-001',
+    'imagen-2.0-plus-001',
+    'imagen-2.0-001'
+  ];
+  
+  const baseUrls = [
+    'https://generativelanguage.googleapis.com/v1beta',
+    'https://ai.googleapis.com/v1beta',
+    'https://generativelanguage.googleapis.com/v1'
   ];
   
   const requestBody: any = {
@@ -89,43 +95,67 @@ const generateImageViaREST = async (
   
   let lastError: any = null;
   
-  for (const apiUrl of endpoints) {
-    try {
-      console.log(`Trying endpoint: ${apiUrl.substring(0, 60)}...`);
+  // Пробуем все комбинации моделей и endpoints
+  for (const model of imagenModels) {
+    for (const baseUrl of baseUrls) {
+      const endpoints = [
+        `${baseUrl}/models/${model}:generateImages?key=${apiKey}`,
+        `${baseUrl}/models/${model}:generateContent?key=${apiKey}`,
+      ];
       
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.log(`Endpoint failed with ${response.status}:`, errorData);
-        lastError = new Error(errorData.error?.message || `HTTP ${response.status}`);
-        continue; // Пробуем следующий endpoint
+      for (const apiUrl of endpoints) {
+        try {
+          console.log(`Trying Imagen REST: ${model} at ${baseUrl}...`);
+          
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.log(`Endpoint failed with ${response.status}:`, errorData.error?.message || response.status);
+            lastError = new Error(errorData.error?.message || `HTTP ${response.status}`);
+            continue; // Пробуем следующий endpoint
+          }
+          
+          const data = await response.json();
+          
+          // Проверяем разные форматы ответа Imagen
+          if (data.generatedImages && data.generatedImages.length > 0) {
+            const imageBase64 = data.generatedImages[0].imageBytes || 
+                               data.generatedImages[0].base64String ||
+                               data.generatedImages[0].bytes;
+            if (imageBase64) {
+              console.log("REST API success with Imagen!");
+              return `data:image/png;base64,${imageBase64}`;
+            }
+          }
+          
+          // Также проверяем формат через candidates (как в Gemini)
+          if (data.candidates && data.candidates.length > 0) {
+            for (const part of data.candidates[0].content?.parts || []) {
+              if (part.inlineData) {
+                console.log("REST API success with inlineData!");
+                return `data:image/png;base64,${part.inlineData.data}`;
+              }
+            }
+          }
+          
+          throw new Error("Изображение не было сгенерировано");
+        } catch (error: any) {
+          console.log(`Endpoint error:`, error.message);
+          lastError = error;
+          continue;
+        }
       }
-      
-      const data = await response.json();
-      
-      if (data.generatedImages && data.generatedImages.length > 0) {
-        // Imagen возвращает изображения в base64
-        const imageBase64 = data.generatedImages[0].imageBytes || data.generatedImages[0].base64String;
-        console.log("REST API success!");
-        return `data:image/png;base64,${imageBase64}`;
-      }
-      
-      throw new Error("Изображение не было сгенерировано");
-    } catch (error: any) {
-      console.log(`Endpoint error:`, error.message);
-      lastError = error;
-      continue;
     }
   }
   
-  throw lastError || new Error("Все REST API endpoints не сработали");
+  throw lastError || new Error("Все REST API endpoints для Imagen не сработали");
 };
 
 export const generateNutraImage = async (
