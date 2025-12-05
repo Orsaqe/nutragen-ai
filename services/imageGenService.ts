@@ -133,6 +133,15 @@ const generateStableDiffusionImage = async (
       
       throw new Error(result.error || 'Generation failed');
     } catch (replicateError: any) {
+      // Проверяем CORS ошибки в Replicate
+      if (replicateError.message?.includes('CORS') || replicateError.message?.includes('Failed to fetch') || replicateError.message?.includes('Access-Control-Allow-Origin')) {
+        throw new Error('Stable Diffusion (Replicate) API блокируется CORS из браузера. Используйте Gemini/Imagen или DALL-E модели.');
+      }
+      
+      if (replicateError.message?.includes('401') || replicateError.message?.includes('403')) {
+        throw new Error('Неверный API ключ для Replicate. Проверьте ключ в настройках.');
+      }
+      
       throw new Error(`Stable Diffusion API error: ${replicateError.message}`);
     }
   }
