@@ -9,11 +9,11 @@ export const AVAILABLE_MODELS: ImageGenModel[] = [
   { id: 'imagen-4.8-fast-generate-001', name: 'Imagen 4.8 Fast', provider: ImageGenProvider.GEMINI, requiresBilling: true },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (текст)', provider: ImageGenProvider.GEMINI, description: 'Возвращает текст, не изображения' },
   
-  // Stable Diffusion models
-  { id: 'stable-diffusion-xl', name: 'Stable Diffusion XL', provider: ImageGenProvider.STABLE_DIFFUSION },
-  { id: 'stable-diffusion-1.5', name: 'Stable Diffusion 1.5', provider: ImageGenProvider.STABLE_DIFFUSION },
-  { id: 'flux-1.1', name: 'Flux 1.1', provider: ImageGenProvider.STABLE_DIFFUSION },
-  { id: 'flux-1.1-dev', name: 'Flux 1.1 Dev', provider: ImageGenProvider.STABLE_DIFFUSION },
+  // Stable Diffusion models (⚠️ Могут не работать из браузера из-за CORS)
+  { id: 'stable-diffusion-xl', name: 'Stable Diffusion XL', provider: ImageGenProvider.STABLE_DIFFUSION, description: '⚠️ Может не работать из браузера (CORS)' },
+  { id: 'stable-diffusion-1.5', name: 'Stable Diffusion 1.5', provider: ImageGenProvider.STABLE_DIFFUSION, description: '⚠️ Может не работать из браузера (CORS)' },
+  { id: 'flux-1.1', name: 'Flux 1.1', provider: ImageGenProvider.STABLE_DIFFUSION, description: '⚠️ Может не работать из браузера (CORS)' },
+  { id: 'flux-1.1-dev', name: 'Flux 1.1 Dev', provider: ImageGenProvider.STABLE_DIFFUSION, description: '⚠️ Может не работать из браузера (CORS)' },
   
   // DALL-E models
   { id: 'dall-e-3', name: 'DALL-E 3', provider: ImageGenProvider.DALL_E },
@@ -77,9 +77,14 @@ const generateStableDiffusionImage = async (
       if (error.message?.includes('billing') || error.message?.includes('limit') || error.message?.includes('quota')) {
         throw new Error('Достигнут лимит биллинга Stable Diffusion. Пополните баланс или используйте другую модель.');
       }
-    
-    // Пробуем Replicate API
-    try {
+      
+      // Проверяем CORS ошибки
+      if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch') || error.message?.includes('Access-Control-Allow-Origin')) {
+        throw new Error('Stable Diffusion API блокируется CORS из браузера. Используйте Gemini/Imagen или DALL-E модели, которые работают из браузера.');
+      }
+      
+      // Пробуем Replicate API (но он тоже может быть заблокирован CORS)
+      try {
       const replicateResponse = await fetch('https://api.replicate.com/v1/predictions', {
         method: 'POST',
         headers: {

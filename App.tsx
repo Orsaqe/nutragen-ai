@@ -233,8 +233,10 @@ export default function App() {
       let errorMessage = error?.message || "Ошибка генерации";
       
       // Улучшенные сообщения об ошибках
-      if (errorMessage.includes('лимит биллинга') || errorMessage.includes('billing')) {
-        errorMessage = `💳 ${errorMessage}\n💡 Попробуйте другую модель (Stable Diffusion или Gemini)`;
+      if (errorMessage.includes('CORS') || errorMessage.includes('блокируется CORS')) {
+        errorMessage = `🚫 ${errorMessage}\n💡 Используйте Gemini/Imagen или DALL-E модели, которые работают из браузера`;
+      } else if (errorMessage.includes('лимит биллинга') || errorMessage.includes('billing')) {
+        errorMessage = `💳 ${errorMessage}\n💡 Попробуйте другую модель (Gemini/Imagen или Stable Diffusion)`;
       } else if (errorMessage.includes('API ключ')) {
         errorMessage = `🔑 ${errorMessage}\n💡 Добавьте ключ в настройках (иконка ключа вверху)`;
       } else if (errorMessage.includes('лимит запросов') || errorMessage.includes('rate limit')) {
@@ -462,6 +464,9 @@ export default function App() {
                             </select>
                             {selectedModel.requiresBilling && (
                                 <p className="text-xs text-yellow-600">⚠️ Требуется платный тариф</p>
+                            )}
+                            {selectedModel.description?.includes('CORS') && (
+                                <p className="text-xs text-orange-600">⚠️ Может не работать из браузера из-за CORS. Используйте Gemini/Imagen или DALL-E.</p>
                             )}
                             {!apiKeys[selectedModel.provider] && (
                                 <p className="text-xs text-red-600">⚠️ Добавьте API ключ для {selectedModel.provider}</p>
