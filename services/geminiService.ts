@@ -209,11 +209,17 @@ export const generateNutraImage = async (
       ${referenceImages.length > 0 ? "- Reference images have been provided. Use them as strong inspiration for the composition, color palette, or subject matter, but adapt them to the specified Nutra Marketing Angle." : ""}
     `;
     
-    // ВАЖНО: Gemini API не поддерживает генерацию изображений напрямую!
-    // Для генерации изображений нужен Imagen API, который может быть недоступен на бесплатном тарифе
-    // или требует другой endpoint/аутентификацию
+    // ВАЖНО: В Google AI Studio используется Imagen API для генерации изображений!
+    // Сначала пробуем REST API для Imagen (правильный способ)
+    try {
+      console.log("Trying Imagen REST API first (as in Google AI Studio)...");
+      return await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
+    } catch (restError: any) {
+      console.log("Imagen REST API failed, trying library approach:", restError.message);
+      // Если REST не сработал, пробуем через библиотеку (может не работать для изображений)
+    }
     
-    // Пока что пробуем через библиотеку с моделями, которые могут работать
+    // Пробуем через библиотеку с моделями, которые могут работать
     const ai = getClient();
 
     // Construct parts: Text prompt + any reference images
