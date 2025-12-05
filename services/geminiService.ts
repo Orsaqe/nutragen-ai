@@ -323,8 +323,13 @@ export const generateNutraImage = async (
         let response;
         
         // ВАЖНО: Для Imagen моделей нужно использовать generateImages, а не generateContent!
-        if (modelName.includes('imagen') && availableMethods.includes('generateImages')) {
-          console.log(`🎨 Using generateImages for Imagen model: ${modelName}`);
+        const isImagenModel = modelName.includes('imagen');
+        const hasGenerateImages = availableMethods.includes('generateImages');
+        
+        console.log(`🔍 Model check: ${modelName}, isImagen: ${isImagenModel}, hasGenerateImages: ${hasGenerateImages}`);
+        
+        if (isImagenModel && hasGenerateImages) {
+          console.log(`🎨🎨🎨 Using generateImages for Imagen model: ${modelName} 🎨🎨🎨`);
           try {
             response = await ai.models.generateImages({
               model: modelName,
@@ -334,11 +339,16 @@ export const generateNutraImage = async (
               safety_filter_level: "block_some",
               person_generation: "allow_all"
             });
-            console.log("✅ generateImages response:", response);
+            console.log("✅✅✅ generateImages response:", response);
           } catch (imagenError: any) {
-            console.log("generateImages failed:", imagenError.message);
+            console.error("❌❌❌ generateImages failed:", imagenError);
             throw imagenError;
           }
+        } else if (isImagenModel && !hasGenerateImages) {
+          console.warn(`⚠️ Imagen model ${modelName} detected but generateImages method not available!`);
+          console.warn(`Available methods:`, availableMethods);
+          // Пробуем все равно через generateContent (может не сработать)
+          throw new Error(`generateImages method not available for ${modelName}`);
         } else {
           // Для Gemini моделей используем generateContent (но они не генерируют изображения!)
           console.log(`⚠️ Using generateContent for Gemini model: ${modelName} (may not work for images)`);
