@@ -58,6 +58,9 @@ const generateImageViaREST = async (
   prompt: string,
   referenceImages: string[] = []
 ): Promise<string> => {
+  console.log("🚀 generateImageViaREST called with API key length:", apiKey.length);
+  console.log("📝 Prompt length:", prompt.length);
+  
   // Актуальные Imagen модели на ноябрь 2025
   const imagenModels = [
     'imagen-4-ultra-001',           // Imagen 4 Ultra - самая мощная
@@ -284,14 +287,20 @@ export const generateNutraImage = async (
     console.log("Available models from API:", availableModels);
     
     // ПРИОРИТЕТ: Сначала новые модели из defaultModels (в порядке приоритета!)
-    // Затем модели из availableModels, которых нет в defaultModels
+    // ВАЖНО: Пробуем ВСЕ модели из defaultModels в указанном порядке, даже если их нет в availableModels!
+    // Потому что availableModels может не включать все доступные модели
     const modelsToTry = [
-      ...defaultModels.filter(m => availableModels.includes(m)),  // Новые модели, которые доступны
-      ...defaultModels.filter(m => !availableModels.includes(m)), // Новые модели, попробуем даже если нет в списке
-      ...availableModels.filter(m => !defaultModels.includes(m))  // Остальные доступные модели
+      ...defaultModels  // Пробуем ВСЕ модели из defaultModels в порядке приоритета (новые первыми!)
     ];
     
-    console.log("📋 Models to try (NEW FIRST!):", modelsToTry);
+    // Добавляем модели из availableModels, которых нет в defaultModels (в конце)
+    const additionalModels = availableModels.filter(m => !defaultModels.includes(m));
+    if (additionalModels.length > 0) {
+      modelsToTry.push(...additionalModels);
+      console.log("➕ Additional models from API:", additionalModels);
+    }
+    
+    console.log("📋 Models to try (NEW FIRST! Total:", modelsToTry.length, "):", modelsToTry);
     
     if (modelsToTry.length === 0) {
       throw new Error("Не найдено доступных моделей. Проверьте API ключ.");
