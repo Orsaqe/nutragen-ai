@@ -222,14 +222,21 @@ export const generateNutraImage = async (
     
     // ВАЖНО: В Google AI Studio используется Imagen API для генерации изображений!
     // Сначала пробуем REST API для Imagen (правильный способ)
+    console.log("═══════════════════════════════════════════════════════════");
     console.log("=== STEP 1: Trying Imagen REST API first (as in Google AI Studio) ===");
+    console.log("═══════════════════════════════════════════════════════════");
+    
     try {
+      console.log("📞 Calling generateImageViaREST...");
       const imagenResult = await generateImageViaREST(localKey.trim(), textPrompt, referenceImages);
-      console.log("✅ Imagen REST API SUCCESS!");
+      console.log("✅✅✅ Imagen REST API SUCCESS! ✅✅✅");
       return imagenResult;
     } catch (restError: any) {
-      console.error("❌ Imagen REST API failed:", restError.message);
+      console.error("❌❌❌ Imagen REST API failed:", restError.message);
+      console.error("❌ Full error:", restError);
+      console.log("═══════════════════════════════════════════════════════════");
       console.log("=== STEP 2: Falling back to library approach ===");
+      console.log("═══════════════════════════════════════════════════════════");
       // Если REST не сработал, пробуем через библиотеку (может не работать для изображений)
     }
     
